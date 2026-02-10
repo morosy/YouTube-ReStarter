@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="popup.css">
+    <title>YouTube Reset</title>
+</head>
+<body>
+    <div class="container">
+        <div class="title">YouTube Reset</div>
+
+        <div class="row">
+            <div class="label">
+                有効化
+                <div class="hint">ONのとき、動画を0:00に戻します</div>
+            </div>
+
+            <label class="switch">
+                <input id="toggleEnabled" type="checkbox">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div id="status" class="status" aria-live="polite"></div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

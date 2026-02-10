@@ -1,26 +1,31 @@
 .ytr-toast {
     position: fixed;
-    top: 16px;
-    right: 16px;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-6px);
+
     z-index: 2147483647;
 
-    padding: 10px 14px;
-    border-radius: 10px;
+    padding: 14px 18px;
+    border-radius: 14px;
 
     background: rgba(20, 20, 20, 0.92);
     color: #ffffff;
 
-    font-size: 14px;
-    line-height: 1.2;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
 
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    min-width: 260px;
+    text-align: center;
+
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.38);
 
     opacity: 0;
-    transform: translateY(-6px);
     transition: opacity 160ms ease, transform 160ms ease;
 }
 
 .ytr-toast.ytr-toast--show {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(-50%) translateY(0);
 }

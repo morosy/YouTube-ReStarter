@@ -7,14 +7,74 @@
         if (!DEBUG) {
             return;
         }
+        // eslint-disable-next-line no-console
         console.log('[YouTube-Reset]', ...args);
     };
 
-    let lastHandledUrl = '';
-    let pendingTimerId = null;
-
+    const STORAGE_KEY = 'enabled';
     const TOAST_ID = 'ytr-toast';
     const TOAST_DURATION_MS = 2000;
+
+    let lastHandledUrl = '';
+    let pendingTimerId = null;
+    let isEnabledCache = true;
+
+    const loadEnabledSetting = async () => {
+        try {
+            const result = await chrome.storage.sync.get([STORAGE_KEY]);
+            isEnabledCache = typeof result[STORAGE_KEY] === 'boolean' ? result[STORAGE_KEY] : true;
+            log('setting loaded', { enabled: isEnabledCache });
+        } catch (e) {
+            // storageが読めない時は安全側でON扱い
+            isEnabledCache = true;
+            log('setting load failed, fallback enabled=true', e);
+        }
+    };
+
+    const startStorageListener = () => {
+        chrome.storage.onChanged.addListener((changes, areaName) => {
+            if (areaName !== 'sync') {
+                return;
+            }
+            if (!changes[STORAGE_KEY]) {
+                return;
+            }
+            isEnabledCache = changes[STORAGE_KEY].newValue;
+            log('setting changed', { enabled: isEnabledCache });
+        });
+    };
+
+    const ensureToastElement = () => {
+        let el = document.getElementById(TOAST_ID);
+        if (el) {
+            return el;
+        }
+
+        el = document.createElement('div');
+        el.id = TOAST_ID;
+        el.className = 'ytr-toast';
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        document.documentElement.appendChild(el);
+
+        return el;
+    };
+
+    const showToast = (message) => {
+        const el = ensureToastElement();
+        el.textContent = message;
+
+        el.classList.add('ytr-toast--show');
+
+        if (el._ytrHideTimerId) {
+            clearTimeout(el._ytrHideTimerId);
+        }
+
+        el._ytrHideTimerId = setTimeout(() => {
+            el.classList.remove('ytr-toast--show');
+            el._ytrHideTimerId = null;
+        }, TOAST_DURATION_MS);
+    };
 
     const isWatchUrl = (url) => {
         try {
@@ -38,42 +98,12 @@
         return null;
     };
 
-    const ensureToastElement = () => {
-        let el = document.getElementById(TOAST_ID);
-        if (el) {
-            return el;
-        }
-
-        el = document.createElement('div');
-        el.id = TOAST_ID;
-        el.className = 'ytr-toast';
-        el.setAttribute('role', 'status');
-        el.setAttribute('aria-live', 'polite');
-        document.documentElement.appendChild(el);
-
-        return el;
-    };
-
-    const showToast = (message) => {
-        const el = ensureToastElement();
-
-        el.textContent = message;
-
-        // 表示
-        el.classList.add('ytr-toast--show');
-
-        // 既存タイマーがあれば消して再スタート
-        if (el._ytrHideTimerId) {
-            clearTimeout(el._ytrHideTimerId);
-        }
-
-        el._ytrHideTimerId = setTimeout(() => {
-            el.classList.remove('ytr-toast--show');
-            el._ytrHideTimerId = null;
-        }, TOAST_DURATION_MS);
-    };
-
     const resetToZeroSafely = async (reason) => {
+        if (!isEnabledCache) {
+            log('disabled - skip', { reason, url: location.href });
+            return;
+        }
+
         const url = location.href;
 
         if (!isWatchUrl(url)) {
@@ -102,7 +132,6 @@
                 video.currentTime = 0;
                 log('reset currentTime=0', { tag });
 
-                // 初回成功時のみトースト
                 if (!toastShown) {
                     toastShown = true;
                     showToast('実行完了しました');
@@ -173,9 +202,16 @@
         });
     };
 
-    hookHistoryApi();
-    hookYouTubeNavigateEvent();
-    observeDomForVideoSwap();
+    const init = async () => {
+        await loadEnabledSetting();
+        startStorageListener();
 
-    scheduleHandle('initial');
+        hookHistoryApi();
+        hookYouTubeNavigateEvent();
+        observeDomForVideoSwap();
+
+        scheduleHandle('initial');
+    };
+
+    init();
 })();
