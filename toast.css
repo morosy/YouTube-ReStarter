@@ -2,7 +2,7 @@
     position: fixed;
     top: 18px;
     left: 50%;
-    transform: translateX(-50%) translateY(-6px);
+    right: auto;
 
     z-index: 2147483647;
 
@@ -21,11 +21,17 @@
 
     box-shadow: 0 12px 34px rgba(0, 0, 0, 0.38);
 
+    /* CSS Variables */
+    --ytr-x: -50%;
+    --ytr-y: -6px;
+    --ytr-scale: 1;
+
     opacity: 0;
+    transform: translate3d(var(--ytr-x), var(--ytr-y), 0) scale(var(--ytr-scale));
     transition: opacity 160ms ease, transform 160ms ease;
 }
 
 .ytr-toast.ytr-toast--show {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    --ytr-y: 0px;
 }

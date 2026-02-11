@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "YouTube Reset",
-    "version": "1.2.2",
-    "description": "YouTubeの動画を必ず0:00から再生します",
+    "version": "1.3.0",
+    "description": "YouTubeの動画を必ず0:00から再生します．",
     "permissions": [
         "storage"
     ],
@@ -13,17 +13,12 @@
         "default_title": "YouTube Reset",
         "default_popup": "popup.html"
     },
+    "options_page": "options.html",
     "content_scripts": [
         {
-            "matches": [
-                "https://www.youtube.com/*"
-            ],
-            "js": [
-                "content.js"
-            ],
-            "css": [
-                "toast.css"
-            ],
+            "matches": ["https://www.youtube.com/*"],
+            "js": ["content.js"],
+            "css": ["toast.css"],
             "run_at": "document_start"
         }
     ]

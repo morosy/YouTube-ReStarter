@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>YouTube Reset Settings</title>
+    <link rel="stylesheet" href="options.css">
+    <link rel="stylesheet" href="toast.css">
+</head>
+<body>
+    <div class="container">
+        <h1 class="page-title">YouTube Reset 設定</h1>
+
+        <div class="card">
+            <div class="row">
+                <div class="label">
+                    有効化
+                    <div class="hint">ON のとき，動画を 0:00 に戻します</div>
+                </div>
+
+                <label class="switch">
+                    <input id="enabled" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="row">
+                <div class="label">
+                    ポップアップ表示
+                    <div class="hint">処理完了時にポップアップを表示します</div>
+                </div>
+
+                <label class="switch">
+                    <input id="showToast" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div id="toastDetails" class="card">
+            <h2 class="section-title">詳細設定</h2>
+
+            <div class="field">
+                <div class="field-label">ポップアップの位置</div>
+                <select id="toastPosition" class="select">
+                    <option value="left">左上</option>
+                    <option value="center">中央</option>
+                    <option value="right">右上</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <div class="field-label">ポップアップの大きさ</div>
+                <div class="range-row">
+                    <input id="toastScale" class="range" type="range" min="0.8" max="1.5" step="0.05">
+                    <div id="toastScaleValue" class="range-value"></div>
+                </div>
+            </div>
+
+            <div class="field">
+                <div class="field-label">表示時間（1s～10s）</div>
+                <div class="range-row">
+                    <input id="toastDuration" class="range" type="range" min="1" max="10" step="1">
+                    <input id="toastDurationInput" class="number" type="number" min="1" max="10" step="1">
+                </div>
+            </div>
+
+            <button id="previewToast" class="primary-btn" type="button">プレビュー</button>
+            <div id="saveStatus" class="status" aria-live="polite"></div>
+        </div>
+    </div>
+
+    <script src="options.js"></script>
+</body>
+</html>
