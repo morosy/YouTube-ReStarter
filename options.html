@@ -67,8 +67,31 @@
                 </div>
             </div>
 
+            <div class="field">
+                <div class="field-label">ポップアップの色</div>
+
+                <div class="color-block">
+                    <div class="color-title">バックグラウンド</div>
+                    <div id="bgPresets" class="preset-row" aria-label="背景色テンプレ"></div>
+
+                    <div class="picker-row">
+                        <input id="toastBgColor" class="color-input" type="color" aria-label="背景色カラーピッカー">
+                        <div id="toastBgColorValue" class="color-value"></div>
+                    </div>
+                </div>
+
+                <div class="color-block">
+                    <div class="color-title">フォントカラー</div>
+                    <div id="fgPresets" class="preset-row" aria-label="文字色テンプレ"></div>
+
+                    <div class="picker-row">
+                        <input id="toastTextColor" class="color-input" type="color" aria-label="文字色カラーピッカー">
+                        <div id="toastTextColorValue" class="color-value"></div>
+                    </div>
+                </div>
+            </div>
+
             <button id="previewToast" class="primary-btn" type="button">プレビュー</button>
-            <div id="saveStatus" class="status" aria-live="polite"></div>
         </div>
     </div>
 
