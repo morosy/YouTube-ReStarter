@@ -11,14 +11,14 @@
     ],
     "action": {
         "default_title": "YouTube Reset",
-        "default_popup": "popup.html"
+        "default_popup": "src/popup/popup.html"
     },
-    "options_page": "options.html",
+    "options_page": "src/options/options.html",
     "content_scripts": [
         {
             "matches": ["https://www.youtube.com/*"],
-            "js": ["content.js"],
-            "css": ["toast.css"],
+            "js": ["src/content/content.js"],
+            "css": ["src/styles/toast.css"],
             "run_at": "document_start"
         }
     ]
