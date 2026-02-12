@@ -1,4 +1,4 @@
-# YouTube-Reset
+# YouTube-ReStarter
 
 現在のバージョン：v1.4.0  
 
@@ -80,7 +80,7 @@ ver 1.4.0 より **ON / OFF に応じた動的アイコン切替**に対応し�
 ## ディレクトリ構成
 
 ```
-YouTube-Reset/
+YouTube-ReStart/
 ├── manifest.json
 ├── src/
 │   ├── background/
