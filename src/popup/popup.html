@@ -3,31 +3,47 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="popup.css">
     <title>YouTube Reset</title>
+    <link rel="stylesheet" href="popup.css">
 </head>
 <body>
     <div class="container">
-        <div class="title">YouTube Reset</div>
-
-        <div class="row">
-            <div class="label">
-                有効化
-                <div class="hint">ON のとき，動画を 0:00 に戻します</div>
-            </div>
-
-            <label class="switch">
-                <input id="toggleEnabled" type="checkbox">
-                <span class="slider"></span>
-            </label>
+        <div class="header">
+            <div class="title">YouTube Reset</div>
         </div>
 
-        <button id="openSettings" class="settings-btn" type="button" aria-label="設定を開く">
-            <img class="settings-icon" src="../../assets/icon/setting.png" alt="設定">
-            <span class="settings-text">設定</span>
-        </button>
+        <div class="card">
+            <div class="row">
+                <div class="label">
+                    有効化
+                    <div id="status" class="status">現在：ON</div>
+                </div>
 
-        <div id="status" class="status" aria-live="polite"></div>
+                <label class="switch">
+                    <input id="toggleEnabled" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div id="restoreArea" class="restore-area">
+                <button id="restoreTime" class="restore-btn" type="button">
+                    再生時間を復元
+                </button>
+
+                <div id="restoreDesc" class="restore-desc">
+                    再生時間を復元します
+                </div>
+
+                <div id="restoreResult" class="restore-result" aria-live="polite"></div>
+            </div>
+
+            <div class="actions">
+                <button id="openSettings" class="settings-btn" type="button">
+                    <img class="settings-icon" src="../../assets/icon/setting.png" alt="設定">
+                    設定
+                </button>
+            </div>
+        </div>
     </div>
 
     <script src="popup.js"></script>

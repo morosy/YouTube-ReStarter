@@ -30,9 +30,11 @@
 
     let isEnabledCache = true;
     let showToastCache = true;
-
-    // OFF -> ON 操作時に「再生中なら実行しない」ためのフラグ
     let wasEnabledCache = true;
+
+    // 直前に 0:00 へ戻す前の再生時間（拡張がリセットしたときのみ記録）
+    let lastResetSnapshot = null;
+    // { url: string, timeSec: number, savedAt: number }
 
     const loadSettings = async () => {
         try {
@@ -45,7 +47,6 @@
 
             log('settings loaded', { enabled: isEnabledCache, showToast: showToastCache });
         } catch (e) {
-            // 読めない場合は安全側
             wasEnabledCache = true;
             isEnabledCache = true;
             showToastCache = true;
@@ -96,7 +97,6 @@
         const el = ensureToastElement();
         el.textContent = message;
 
-        // 位置
         if (settings.toastPosition === 'left') {
             el.style.left = '18px';
             el.style.right = 'auto';
@@ -111,7 +111,6 @@
             el.style.setProperty('--ytr-x', '-50%');
         }
 
-        // 大きさ・色
         el.style.setProperty('--ytr-scale', String(settings.toastScale));
         el.style.setProperty('--ytr-bg', settings.toastBgColor);
         el.style.setProperty('--ytr-fg', settings.toastTextColor);
@@ -122,10 +121,12 @@
             clearTimeout(el._ytrHideTimerId);
         }
 
+        const durationMs = typeof settings.toastDurationMs === 'number' ? settings.toastDurationMs : 2000;
+
         el._ytrHideTimerId = setTimeout(() => {
             el.classList.remove('ytr-toast--show');
             el._ytrHideTimerId = null;
-        }, settings.toastDurationMs);
+        }, durationMs);
     };
 
     const isWatchUrl = (url) => {
@@ -151,6 +152,61 @@
         return null;
     };
 
+    const formatTime = (sec) => {
+        const s = Math.max(0, Math.floor(sec));
+        const mm = String(Math.floor(s / 60)).padStart(2, '0');
+        const ss = String(s % 60).padStart(2, '0');
+        return `${mm}:${ss}`;
+    };
+
+    const getSnapshotForCurrentUrl = () => {
+        const url = location.href;
+
+        if (!isWatchUrl(url)) {
+            return null;
+        }
+
+        if (!lastResetSnapshot) {
+            return null;
+        }
+
+        if (lastResetSnapshot.url !== url) {
+            return null;
+        }
+
+        if (typeof lastResetSnapshot.timeSec !== 'number' || Number.isNaN(lastResetSnapshot.timeSec)) {
+            return null;
+        }
+
+        return lastResetSnapshot;
+    };
+
+    const restoreLastTime = async () => {
+        const snap = getSnapshotForCurrentUrl();
+        if (!snap) {
+            return { ok: false, message: '復元できる再生時間がありません' };
+        }
+
+        const video = await waitForVideoElement(8000);
+        if (!video) {
+            return { ok: false, message: '動画が見つかりません' };
+        }
+
+        try {
+            const target = snap.timeSec;
+            video.currentTime = target;
+
+            const restoredTimeText = formatTime(target);
+
+            const settings = await STORAGE.get(STORAGE_DEFAULTS);
+            showToast(`再生時間を復元しました（${restoredTimeText}）`, settings);
+
+            return { ok: true, restoredTimeText };
+        } catch (e) {
+            return { ok: false, message: '復元に失敗しました' };
+        }
+    };
+
     const resetToZeroSafely = async (reason) => {
         if (!isEnabledCache) {
             log('disabled - skip', { reason, url: location.href });
@@ -164,7 +220,6 @@
             return;
         }
 
-        // OFF -> ON の瞬間は「再生中なら実行しない」
         if (!wasEnabledCache && isEnabledCache) {
             const currentVideo = document.querySelector('video');
             if (currentVideo && !currentVideo.paused && !currentVideo.ended) {
@@ -194,8 +249,17 @@
 
         const tryReset = (tag) => {
             try {
+                const before = Number(video.currentTime);
+                if (!Number.isNaN(before)) {
+                    lastResetSnapshot = {
+                        url,
+                        timeSec: before,
+                        savedAt: Date.now()
+                    };
+                }
+
                 video.currentTime = 0;
-                log('reset currentTime=0', { tag });
+                log('reset currentTime=0', { tag, before });
 
                 if (!toastShown) {
                     toastShown = true;
@@ -266,6 +330,32 @@
             subtree: true
         });
     };
+
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (!message) {
+            return;
+        }
+
+        if (message.type === 'YTR_RESTORE_TIME') {
+            restoreLastTime().then((res) => {
+                sendResponse(res);
+            });
+            return true;
+        }
+
+        if (message.type === 'YTR_GET_SNAPSHOT') {
+            const snap = getSnapshotForCurrentUrl();
+            if (!snap) {
+                sendResponse({ ok: false });
+                return;
+            }
+
+            sendResponse({
+                ok: true,
+                timeText: formatTime(snap.timeSec)
+            });
+        }
+    });
 
     const init = async () => {
         await loadSettings();
