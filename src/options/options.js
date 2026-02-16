@@ -16,11 +16,14 @@
         showToast: true,
 
         toastPosition: 'center',
-        toastScale: 1.0,
+        toastScale: 1.5,
         toastDurationMs: 2000,
 
         toastBgColor: '#ff0033',
         toastTextColor: '#ffffff',
+
+        toastAnimationEnabled: true,
+        toastAnimationDurationMs: 500,
 
         bgColorHistory: [...TEMPLATE_COLORS],
         textColorHistory: [...TEMPLATE_COLORS]
@@ -29,11 +32,18 @@
     const els = {
         enabled: document.getElementById('enabled'),
         showToast: document.getElementById('showToast'),
+
         toastPosition: document.getElementById('toastPosition'),
         toastScale: document.getElementById('toastScale'),
         toastScaleValue: document.getElementById('toastScaleValue'),
+
         toastDuration: document.getElementById('toastDuration'),
         toastDurationText: document.getElementById('toastDurationText'),
+
+        toastAnimationEnabled: document.getElementById('toastAnimationEnabled'),
+        animationSettings: document.getElementById('animationSettings'),
+        toastAnimationDuration: document.getElementById('toastAnimationDuration'),
+        toastAnimationDurationValue: document.getElementById('toastAnimationDurationValue'),
 
         bgPalette: document.getElementById('bgPalette'),
         textPalette: document.getElementById('textPalette'),
@@ -49,16 +59,21 @@
 
         previewToast: document.getElementById('previewToast'),
         saveSettings: document.getElementById('saveSettings'),
+
         dirtyDot: document.getElementById('dirtyDot'),
         saveToast: document.getElementById('saveToast'),
 
         disabledMaskTarget: document.getElementById('disabledMaskTarget'),
-        toastDetailArea: document.getElementById('toastDetailArea')
+        toastDetailArea: document.getElementById('toastDetailArea'),
+
+        // 追加：カラー設定ブロック
+        colorSettingsBlock: document.getElementById('colorSettingsBlock')
     };
 
     let draft = null;
-    let isDirty = false;
     let saveToastTimerId = null;
+
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
     const normalizeColor = (c) => {
         if (!c) {
@@ -73,16 +88,12 @@
         return null;
     };
 
-    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
-
     const setDirty = (dirty) => {
-        isDirty = !!dirty;
-
         if (!els.dirtyDot) {
             return;
         }
 
-        els.dirtyDot.classList.toggle('is-dirty', isDirty);
+        els.dirtyDot.classList.toggle('is-dirty', !!dirty);
     };
 
     const showSaveToast = (message) => {
@@ -103,6 +114,38 @@
         }, 2000);
     };
 
+    const applyEnabledMask = () => {
+        if (!els.disabledMaskTarget || !els.enabled) {
+            return;
+        }
+
+        els.disabledMaskTarget.classList.toggle('is-disabled', !els.enabled.checked);
+    };
+
+    const applyToastDetailVisibility = () => {
+        if (!els.showToast) {
+            return;
+        }
+
+        const visible = !!els.showToast.checked;
+
+        if (els.toastDetailArea) {
+            els.toastDetailArea.style.display = visible ? 'block' : 'none';
+        }
+
+        if (els.colorSettingsBlock) {
+            els.colorSettingsBlock.style.display = visible ? 'block' : 'none';
+        }
+    };
+
+    const applyAnimationSettingsVisibility = () => {
+        if (!els.animationSettings || !els.toastAnimationEnabled) {
+            return;
+        }
+
+        els.animationSettings.style.display = els.toastAnimationEnabled.checked ? 'block' : 'none';
+    };
+
     const ensureHistoryArray = (arr) => {
         if (!Array.isArray(arr)) {
             return [...TEMPLATE_COLORS];
@@ -119,7 +162,6 @@
         return normalized;
     };
 
-    // FIFO
     const pushColorFifo = (history, color) => {
         const c = normalizeColor(color);
         if (!c) {
@@ -128,9 +170,9 @@
 
         const next = history.slice();
 
-        const existedIndex = next.indexOf(c);
-        if (existedIndex !== -1) {
-            next.splice(existedIndex, 1);
+        const idx = next.indexOf(c);
+        if (idx !== -1) {
+            next.splice(idx, 1);
         }
 
         next.push(c);
@@ -140,23 +182,6 @@
         }
 
         return next;
-    };
-
-    const applyEnabledMask = () => {
-        if (!els.disabledMaskTarget || !els.enabled) {
-            return;
-        }
-
-        const enabled = !!els.enabled.checked;
-        els.disabledMaskTarget.classList.toggle('is-disabled', !enabled);
-    };
-
-    const applyToastDetailVisibility = () => {
-        if (!els.toastDetailArea || !els.showToast) {
-            return;
-        }
-
-        els.toastDetailArea.style.display = els.showToast.checked ? 'block' : 'none';
     };
 
     const renderPalette = (container, history, selectedColor, onPick) => {
@@ -184,7 +209,6 @@
             container.appendChild(btn);
         });
 
-        // 10枠未満でも 2行5列を保つための空枠
         for (let i = history.length; i < 10; i += 1) {
             const spacer = document.createElement('div');
             spacer.style.width = '36px';
@@ -198,8 +222,8 @@
             return;
         }
 
-        renderPalette(els.bgPalette, draft.bgColorHistory, draft.toastBgColor, (color) => {
-            draft.toastBgColor = normalizeColor(color) || draft.toastBgColor;
+        renderPalette(els.bgPalette, draft.bgColorHistory, draft.toastBgColor, (picked) => {
+            draft.toastBgColor = normalizeColor(picked) || draft.toastBgColor;
             draft.bgColorHistory = pushColorFifo(draft.bgColorHistory, draft.toastBgColor);
 
             if (els.bgPicker) {
@@ -213,8 +237,8 @@
             renderAllPalettes();
         });
 
-        renderPalette(els.textPalette, draft.textColorHistory, draft.toastTextColor, (color) => {
-            draft.toastTextColor = normalizeColor(color) || draft.toastTextColor;
+        renderPalette(els.textPalette, draft.textColorHistory, draft.toastTextColor, (picked) => {
+            draft.toastTextColor = normalizeColor(picked) || draft.toastTextColor;
             draft.textColorHistory = pushColorFifo(draft.textColorHistory, draft.toastTextColor);
 
             if (els.textPicker) {
@@ -243,7 +267,11 @@
         if (els.toastPosition) {
             els.toastPosition.value = draft.toastPosition || 'center';
         }
+
         if (els.toastScale) {
+            els.toastScale.min = '0.5';
+            els.toastScale.max = '2.0';
+            els.toastScale.step = '0.05';
             els.toastScale.value = String(draft.toastScale);
         }
         if (els.toastScaleValue) {
@@ -271,8 +299,23 @@
             els.textColorValue.textContent = draft.toastTextColor;
         }
 
+        if (els.toastAnimationEnabled) {
+            els.toastAnimationEnabled.checked = !!draft.toastAnimationEnabled;
+        }
+
+        if (els.toastAnimationDuration) {
+            els.toastAnimationDuration.min = '100';
+            els.toastAnimationDuration.max = '1000';
+            els.toastAnimationDuration.step = '10';
+            els.toastAnimationDuration.value = String(draft.toastAnimationDurationMs);
+        }
+        if (els.toastAnimationDurationValue) {
+            els.toastAnimationDurationValue.textContent = String(draft.toastAnimationDurationMs);
+        }
+
         applyEnabledMask();
         applyToastDetailVisibility();
+        applyAnimationSettingsVisibility();
         renderAllPalettes();
     };
 
@@ -284,18 +327,32 @@
             showToast: !!data.showToast,
 
             toastPosition: data.toastPosition || 'center',
-            toastScale: typeof data.toastScale === 'number' ? data.toastScale : 1.0,
+            toastScale: typeof data.toastScale === 'number' ? data.toastScale : 1.5,
             toastDurationMs: typeof data.toastDurationMs === 'number' ? data.toastDurationMs : 2000,
 
             toastBgColor: normalizeColor(data.toastBgColor) || STORAGE_DEFAULTS.toastBgColor,
             toastTextColor: normalizeColor(data.toastTextColor) || STORAGE_DEFAULTS.toastTextColor,
 
+            toastAnimationEnabled: typeof data.toastAnimationEnabled === 'boolean'
+                ? data.toastAnimationEnabled
+                : true,
+
+            toastAnimationDurationMs: typeof data.toastAnimationDurationMs === 'number'
+                ? data.toastAnimationDurationMs
+                : 500,
+
             bgColorHistory: ensureHistoryArray(data.bgColorHistory),
             textColorHistory: ensureHistoryArray(data.textColorHistory)
         };
 
-        draft.toastScale = clamp(draft.toastScale, 0.8, 1.6);
-        draft.toastDurationMs = clamp(draft.toastDurationMs, 1000, 10000);
+        draft.toastScale = clamp(Number(draft.toastScale), 0.5, 2.0);
+        draft.toastDurationMs = clamp(Number(draft.toastDurationMs), 1000, 10000);
+
+        draft.toastAnimationDurationMs = clamp(
+            Math.round(Number(draft.toastAnimationDurationMs) / 10) * 10,
+            100,
+            1000
+        );
 
         while (draft.bgColorHistory.length > 10) {
             draft.bgColorHistory.shift();
@@ -314,11 +371,18 @@
             showToast: !!draft.showToast,
 
             toastPosition: draft.toastPosition,
-            toastScale: draft.toastScale,
-            toastDurationMs: draft.toastDurationMs,
+            toastScale: clamp(Number(draft.toastScale), 0.5, 2.0),
+            toastDurationMs: clamp(Number(draft.toastDurationMs), 1000, 10000),
 
             toastBgColor: draft.toastBgColor,
             toastTextColor: draft.toastTextColor,
+
+            toastAnimationEnabled: !!draft.toastAnimationEnabled,
+            toastAnimationDurationMs: clamp(
+                Math.round(Number(draft.toastAnimationDurationMs) / 10) * 10,
+                100,
+                1000
+            ),
 
             bgColorHistory: draft.bgColorHistory.slice(0, 10),
             textColorHistory: draft.textColorHistory.slice(0, 10)
@@ -343,18 +407,19 @@
         const toast = document.createElement('div');
         toast.textContent = 'プレビュー表示です';
         toast.style.position = 'fixed';
-        toast.style.top = '16px';
+        toast.style.top = '18px';
         toast.style.zIndex = '2147483647';
-        toast.style.padding = '12px 16px';
+        toast.style.padding = '14px 18px';
         toast.style.borderRadius = '14px';
         toast.style.fontWeight = '900';
         toast.style.background = draft.toastBgColor;
         toast.style.color = draft.toastTextColor;
 
-        const scale = clamp(Number(draft.toastScale), 0.8, 1.6);
+        const scale = clamp(Number(draft.toastScale), 0.5, 2.0);
 
         if (draft.toastPosition === 'left') {
             toast.style.left = '18px';
+            toast.style.right = 'auto';
             toast.style.transform = `scale(${scale})`;
         } else if (draft.toastPosition === 'right') {
             toast.style.left = 'auto';
@@ -362,15 +427,28 @@
             toast.style.transform = `scale(${scale})`;
         } else {
             toast.style.left = '50%';
+            toast.style.right = 'auto';
             toast.style.transform = `translateX(-50%) scale(${scale})`;
+        }
+
+        if (draft.toastAnimationEnabled) {
+            toast.animate(
+                [
+                    { transform: `${toast.style.transform} translateY(-24px)`, opacity: 0 },
+                    { transform: toast.style.transform, opacity: 1 }
+                ],
+                {
+                    duration: clamp(draft.toastAnimationDurationMs, 100, 1000),
+                    easing: 'cubic-bezier(0.2, 0.9, 0.2, 1.0)'
+                }
+            );
         }
 
         document.body.appendChild(toast);
 
-        const durationMs = clamp(Number(draft.toastDurationMs), 1000, 10000);
         setTimeout(() => {
             toast.remove();
-        }, durationMs);
+        }, 1500);
     };
 
     const bindEvents = () => {
@@ -400,7 +478,7 @@
         if (els.toastScale) {
             els.toastScale.addEventListener('input', () => {
                 const v = Number(els.toastScale.value);
-                draft.toastScale = clamp(v, 0.8, 1.6);
+                draft.toastScale = clamp(v, 0.5, 2.0);
 
                 if (els.toastScaleValue) {
                     els.toastScaleValue.textContent = String(draft.toastScale.toFixed(2));
@@ -433,6 +511,27 @@
                 }
 
                 els.toastDurationText.value = String(sec);
+                setDirty(true);
+            });
+        }
+
+        if (els.toastAnimationEnabled) {
+            els.toastAnimationEnabled.addEventListener('change', () => {
+                draft.toastAnimationEnabled = !!els.toastAnimationEnabled.checked;
+                setDirty(true);
+                applyAnimationSettingsVisibility();
+            });
+        }
+
+        if (els.toastAnimationDuration) {
+            els.toastAnimationDuration.addEventListener('input', () => {
+                const v = clamp(Number(els.toastAnimationDuration.value), 100, 1000);
+                draft.toastAnimationDurationMs = Math.round(v / 10) * 10;
+
+                if (els.toastAnimationDurationValue) {
+                    els.toastAnimationDurationValue.textContent = String(draft.toastAnimationDurationMs);
+                }
+
                 setDirty(true);
             });
         }

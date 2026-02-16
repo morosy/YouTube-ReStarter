@@ -8,7 +8,7 @@
             return;
         }
         // eslint-disable-next-line no-console
-        console.log('[YouTube-Reset]', ...args);
+        console.log('[YouTube-ReStarter]', ...args);
     };
 
     const STORAGE = chrome.storage.local;
@@ -16,12 +16,16 @@
     const STORAGE_DEFAULTS = {
         enabled: true,
         showToast: true,
+
         toastPosition: 'center',
-        toastScale: 1.0,
+        toastScale: 1.5,
         toastDurationMs: 2000,
-        // デフォルトカラー(YouTubeのアイコンに準ずる)
+        // YouTubeのアイコンカラーに基づくデフォルトカラー
         toastBgColor: '#ff0033',
-        toastTextColor: '#ffffff'
+        toastTextColor: '#ffffff',
+
+        toastAnimationEnabled: true,
+        toastAnimationDurationMs: 500
     };
 
     const TOAST_ID = 'ytr-toast';
@@ -30,14 +34,23 @@
     let pendingTimerId = null;
 
     let isEnabledCache = true;
-    let showToastCache = true;
     let wasEnabledCache = true;
+    let showToastCache = true;
 
-    // 直前に 0:00 へ戻す前の再生時間（拡張がリセットしたときのみ記録）
     let lastResetSnapshot = null;
-    // { url: string, timeSec: number, savedAt: number }
 
-    const loadSettings = async () => {
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+
+    const normalizeAnimDurationMs = (v) => {
+        const n = Number(v);
+        if (Number.isNaN(n)) {
+            return 500;
+        }
+        const snapped = Math.round(n / 10) * 10;
+        return clamp(snapped, 100, 1000);
+    };
+
+    const loadSettingsCache = async () => {
         try {
             const data = await STORAGE.get(STORAGE_DEFAULTS);
 
@@ -46,12 +59,12 @@
             isEnabledCache = typeof data.enabled === 'boolean' ? data.enabled : true;
             showToastCache = typeof data.showToast === 'boolean' ? data.showToast : true;
 
-            log('settings loaded', { enabled: isEnabledCache, showToast: showToastCache });
+            log('setting loaded', { enabled: isEnabledCache, showToast: showToastCache });
         } catch (e) {
             wasEnabledCache = true;
             isEnabledCache = true;
             showToastCache = true;
-            log('settings load failed, fallback enabled=true', e);
+            log('setting load failed, fallback enabled=true', e);
         }
     };
 
@@ -90,19 +103,12 @@
         return el;
     };
 
-    const showToast = (message, settings) => {
-        if (!showToastCache) {
-            return;
-        }
-
-        const el = ensureToastElement();
-        el.textContent = message;
-
-        if (settings.toastPosition === 'left') {
+    const applyToastPosition = (el, position) => {
+        if (position === 'left') {
             el.style.left = '18px';
             el.style.right = 'auto';
             el.style.setProperty('--ytr-x', '0%');
-        } else if (settings.toastPosition === 'right') {
+        } else if (position === 'right') {
             el.style.left = 'auto';
             el.style.right = '18px';
             el.style.setProperty('--ytr-x', '0%');
@@ -111,10 +117,33 @@
             el.style.right = 'auto';
             el.style.setProperty('--ytr-x', '-50%');
         }
+    };
 
-        el.style.setProperty('--ytr-scale', String(settings.toastScale));
-        el.style.setProperty('--ytr-bg', settings.toastBgColor);
-        el.style.setProperty('--ytr-fg', settings.toastTextColor);
+    const showToast = (message, settings) => {
+        if (!showToastCache) {
+            return;
+        }
+
+        const el = ensureToastElement();
+        el.textContent = message;
+
+        applyToastPosition(el, settings.toastPosition || 'center');
+
+        const scale = clamp(Number(settings.toastScale ?? 1.5), 0.5, 2.0);
+        el.style.setProperty('--ytr-scale', String(scale));
+
+        el.style.setProperty('--ytr-bg', settings.toastBgColor || '#ff0033');
+        el.style.setProperty('--ytr-fg', settings.toastTextColor || '#ffffff');
+
+        const animMs = normalizeAnimDurationMs(settings.toastAnimationDurationMs);
+        el.style.setProperty('--ytr-anim-duration', `${animMs}ms`);
+
+        el.classList.remove('ytr-toast--anim-drop');
+        void el.offsetWidth;
+
+        if (settings.toastAnimationEnabled) {
+            el.classList.add('ytr-toast--anim-drop');
+        }
 
         el.classList.add('ytr-toast--show');
 
@@ -122,7 +151,9 @@
             clearTimeout(el._ytrHideTimerId);
         }
 
-        const durationMs = typeof settings.toastDurationMs === 'number' ? settings.toastDurationMs : 2000;
+        const durationMs = typeof settings.toastDurationMs === 'number'
+            ? clamp(settings.toastDurationMs, 1000, 10000)
+            : 2000;
 
         el._ytrHideTimerId = setTimeout(() => {
             el.classList.remove('ytr-toast--show');
@@ -166,15 +197,12 @@
         if (!isWatchUrl(url)) {
             return null;
         }
-
         if (!lastResetSnapshot) {
             return null;
         }
-
         if (lastResetSnapshot.url !== url) {
             return null;
         }
-
         if (typeof lastResetSnapshot.timeSec !== 'number' || Number.isNaN(lastResetSnapshot.timeSec)) {
             return null;
         }
@@ -185,7 +213,7 @@
     const restoreLastTime = async () => {
         const snap = getSnapshotForCurrentUrl();
         if (!snap) {
-            return { ok: false, message: '復元できる再生時間がありません' };
+            return { ok: false, message: '復元対象なし' };
         }
 
         const video = await waitForVideoElement(8000);
@@ -351,15 +379,12 @@
                 return;
             }
 
-            sendResponse({
-                ok: true,
-                timeText: formatTime(snap.timeSec)
-            });
+            sendResponse({ ok: true, timeText: formatTime(snap.timeSec) });
         }
     });
 
     const init = async () => {
-        await loadSettings();
+        await loadSettingsCache();
         startStorageListener();
 
         hookHistoryApi();

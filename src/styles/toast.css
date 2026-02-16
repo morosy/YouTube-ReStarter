@@ -12,9 +12,14 @@
     /* CSS Variables */
     --ytr-x: -50%;
     --ytr-y: -6px;
-    --ytr-scale: 1;
-    --ytr-bg: rgba(20, 20, 20, 0.92);
+    --ytr-scale: 1.5;
+
+    /* 変更：デフォルト色を YouTube に合わせる */
+    --ytr-bg: #ff0033;
     --ytr-fg: #ffffff;
+
+    /* 追加：アニメーション速度（可変） */
+    --ytr-anim-duration: 500ms;
 
     background: var(--ytr-bg);
     color: var(--ytr-fg);
@@ -36,4 +41,20 @@
 .ytr-toast.ytr-toast--show {
     opacity: 1;
     --ytr-y: 0px;
+}
+
+/* 上から落ちてくるアニメーション */
+@keyframes ytrDropIn {
+    0% {
+        opacity: 0;
+        transform: translate3d(var(--ytr-x), -24px, 0) scale(var(--ytr-scale));
+    }
+    100% {
+        opacity: 1;
+        transform: translate3d(var(--ytr-x), 0px, 0) scale(var(--ytr-scale));
+    }
+}
+
+.ytr-toast.ytr-toast--anim-drop {
+    animation: ytrDropIn var(--ytr-anim-duration, 500ms) cubic-bezier(0.2, 0.9, 0.2, 1.0);
 }

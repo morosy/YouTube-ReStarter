@@ -75,7 +75,7 @@ body {
 }
 
 .range {
-    width: 220px;
+    width: 260px;
 }
 
 .value-text {
@@ -105,29 +105,43 @@ body {
     color: var(--muted);
 }
 
+/* ブロック化 */
+.block {
+    padding: 10px 8px 6px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.6);
+}
+
+.block-gap-top {
+    margin-top: 22px;
+}
+
+.section-title {
+    margin: 4px 0 12px;
+    font-size: 16px;
+    font-weight: 900;
+    text-align: center;
+}
+
+/* 区切り線（実線・点線）を削除するため，border を付けない */
 .detail {
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
+.subdetail {
+    margin-top: 10px;
+    padding-top: 10px;
 }
 
 .mask-target.is-disabled {
     opacity: 0.35;
 }
 
-.color-block {
-    margin-top: 16px;
-    text-align: center;
-}
-
-.section-title {
-    margin: 0 0 12px;
-    font-size: 16px;
-    font-weight: 900;
-}
-
 .color-group {
     margin: 14px 0;
+    text-align: center;
 }
 
 .color-subtitle {
@@ -144,7 +158,6 @@ body {
     margin: 0 auto;
 }
 
-/* options.js 側で button を生成して class を付ける想定 */
 .color-swatch {
     width: 36px;
     height: 36px;
@@ -220,8 +233,14 @@ body {
     color: #ffffff;
 }
 
+/* 追加：プレビューボタンを左右中央揃え */
+#previewToast {
+    display: block;
+    margin: 10px auto 0;
+}
+
 .save-row {
-    margin-top: 16px;
+    margin-top: 18px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -251,7 +270,6 @@ body {
     font-weight: 700;
 }
 
-/* 保存完了トースト（設定に関わらず中央上部固定） */
 .save-toast {
     position: fixed;
     left: 50%;
