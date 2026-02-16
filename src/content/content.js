@@ -19,7 +19,8 @@
         toastPosition: 'center',
         toastScale: 1.0,
         toastDurationMs: 2000,
-        toastBgColor: '#141414',
+        // デフォルトカラー(YouTubeのアイコンに準ずる)
+        toastBgColor: '#ff0033',
         toastTextColor: '#ffffff'
     };
 

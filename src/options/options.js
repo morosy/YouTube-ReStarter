@@ -1,363 +1,497 @@
 (() => {
     'use strict';
 
-    // storage.sync は quota が厳しいため，local を使用
     const STORAGE = chrome.storage.local;
 
-    const DEFAULTS = {
+    const TEMPLATE_COLORS = [
+        '#ff0033',
+        '#ffffff',
+        '#111111',
+        '#666666',
+        '#2d7dff'
+    ];
+
+    const STORAGE_DEFAULTS = {
         enabled: true,
         showToast: true,
+
         toastPosition: 'center',
         toastScale: 1.0,
         toastDurationMs: 2000,
-        toastBgColor: '#141414',
-        toastTextColor: '#ffffff'
+
+        toastBgColor: '#ff0033',
+        toastTextColor: '#ffffff',
+
+        bgColorHistory: [...TEMPLATE_COLORS],
+        textColorHistory: [...TEMPLATE_COLORS]
     };
-
-    const BG_PRESETS = [
-        '#141414',
-        '#1f2937',
-        '#0f766e',
-        '#7c3aed',
-        '#b91c1c'
-    ];
-
-    const FG_PRESETS = [
-        '#ffffff',
-        '#e5e7eb',
-        '#111827',
-        '#0b0f19',
-        '#facc15'
-    ];
-
-    const TOAST_ID = 'ytr-options-toast';
 
     const els = {
         enabled: document.getElementById('enabled'),
-        settingsBody: document.getElementById('settingsBody'),
-
         showToast: document.getElementById('showToast'),
-        toastDetails: document.getElementById('toastDetails'),
-
         toastPosition: document.getElementById('toastPosition'),
         toastScale: document.getElementById('toastScale'),
         toastScaleValue: document.getElementById('toastScaleValue'),
-
         toastDuration: document.getElementById('toastDuration'),
-        toastDurationInput: document.getElementById('toastDurationInput'),
+        toastDurationText: document.getElementById('toastDurationText'),
 
-        bgPresets: document.getElementById('bgPresets'),
-        fgPresets: document.getElementById('fgPresets'),
-        toastBgColor: document.getElementById('toastBgColor'),
-        toastTextColor: document.getElementById('toastTextColor'),
-        toastBgColorValue: document.getElementById('toastBgColorValue'),
-        toastTextColorValue: document.getElementById('toastTextColorValue'),
+        bgPalette: document.getElementById('bgPalette'),
+        textPalette: document.getElementById('textPalette'),
+
+        bgPicker: document.getElementById('bgPicker'),
+        textPicker: document.getElementById('textPicker'),
+
+        bgPickApply: document.getElementById('bgPickApply'),
+        textPickApply: document.getElementById('textPickApply'),
+
+        bgColorValue: document.getElementById('bgColorValue'),
+        textColorValue: document.getElementById('textColorValue'),
 
         previewToast: document.getElementById('previewToast'),
         saveSettings: document.getElementById('saveSettings'),
-        unsavedDot: document.getElementById('unsavedDot')
+        dirtyDot: document.getElementById('dirtyDot'),
+        saveToast: document.getElementById('saveToast'),
+
+        disabledMaskTarget: document.getElementById('disabledMaskTarget'),
+        toastDetailArea: document.getElementById('toastDetailArea')
     };
 
+    let draft = null;
+    let isDirty = false;
     let saveToastTimerId = null;
-    let lastSavedPayloadStr = '';
-    let isSaving = false;
 
-    const clampInt = (v, min, max) => {
-        const n = Number.parseInt(v, 10);
-        if (Number.isNaN(n)) {
-            return min;
+    const normalizeColor = (c) => {
+        if (!c) {
+            return null;
         }
-        return Math.min(max, Math.max(min, n));
-    };
 
-    const clampFloat = (v, min, max) => {
-        const n = Number.parseFloat(v);
-        if (Number.isNaN(n)) {
-            return min;
+        const s = String(c).trim().toLowerCase();
+        if (/^#[0-9a-f]{6}$/.test(s)) {
+            return s;
         }
-        return Math.min(max, Math.max(min, n));
+
+        return null;
     };
 
-    const isValidHexColor = (value) => {
-        return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
-    };
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
-    const updateEnabledLook = () => {
-        if (!els.enabled.checked) {
-            els.settingsBody.classList.add('is-disabled-look');
+    const setDirty = (dirty) => {
+        isDirty = !!dirty;
+
+        if (!els.dirtyDot) {
             return;
         }
-        els.settingsBody.classList.remove('is-disabled-look');
+
+        els.dirtyDot.classList.toggle('is-dirty', isDirty);
     };
 
-    const updateDetailsVisibility = () => {
-        els.toastDetails.style.display = els.showToast.checked ? 'block' : 'none';
-    };
-
-    const updateScaleLabel = () => {
-        els.toastScaleValue.textContent = `${Number(els.toastScale.value).toFixed(2)}x`;
-    };
-
-    const updateColorLabels = () => {
-        els.toastBgColorValue.textContent = els.toastBgColor.value.toUpperCase();
-        els.toastTextColorValue.textContent = els.toastTextColor.value.toUpperCase();
-    };
-
-    const ensureSaveToastElement = () => {
-        let el = document.getElementById(TOAST_ID);
-        if (el) {
-            return el;
+    const showSaveToast = (message) => {
+        if (!els.saveToast) {
+            return;
         }
 
-        el = document.createElement('div');
-        el.id = TOAST_ID;
-        el.className = 'ytr-toast';
-        el.setAttribute('role', 'status');
-        el.setAttribute('aria-live', 'polite');
+        els.saveToast.textContent = message;
+        els.saveToast.classList.add('is-show');
 
-        // 保存通知は常に中央上部
-        el.style.left = '50%';
-        el.style.right = 'auto';
-        el.style.setProperty('--ytr-x', '-50%');
-        el.style.setProperty('--ytr-scale', '1');
-        el.style.setProperty('--ytr-bg', 'rgba(20, 20, 20, 0.92)');
-        el.style.setProperty('--ytr-fg', '#ffffff');
-
-        document.documentElement.appendChild(el);
-        return el;
-    };
-
-    const showSaveToast = () => {
-        const el = ensureSaveToastElement();
-        el.textContent = '設定を保存しました';
-        el.classList.add('ytr-toast--show');
-
-        if (saveToastTimerId !== null) {
+        if (saveToastTimerId) {
             clearTimeout(saveToastTimerId);
         }
 
-        saveToastTimerId = window.setTimeout(() => {
-            el.classList.remove('ytr-toast--show');
+        saveToastTimerId = setTimeout(() => {
+            els.saveToast.classList.remove('is-show');
             saveToastTimerId = null;
-        }, 1400);
+        }, 2000);
     };
 
-    const renderPresetButtons = (containerEl, colors, onPick) => {
-        containerEl.innerHTML = '';
+    const ensureHistoryArray = (arr) => {
+        if (!Array.isArray(arr)) {
+            return [...TEMPLATE_COLORS];
+        }
 
-        for (const color of colors) {
+        const normalized = arr
+            .map((c) => normalizeColor(c))
+            .filter((c) => !!c);
+
+        if (normalized.length === 0) {
+            return [...TEMPLATE_COLORS];
+        }
+
+        return normalized;
+    };
+
+    // FIFO
+    const pushColorFifo = (history, color) => {
+        const c = normalizeColor(color);
+        if (!c) {
+            return history.slice();
+        }
+
+        const next = history.slice();
+
+        const existedIndex = next.indexOf(c);
+        if (existedIndex !== -1) {
+            next.splice(existedIndex, 1);
+        }
+
+        next.push(c);
+
+        while (next.length > 10) {
+            next.shift();
+        }
+
+        return next;
+    };
+
+    const applyEnabledMask = () => {
+        if (!els.disabledMaskTarget || !els.enabled) {
+            return;
+        }
+
+        const enabled = !!els.enabled.checked;
+        els.disabledMaskTarget.classList.toggle('is-disabled', !enabled);
+    };
+
+    const applyToastDetailVisibility = () => {
+        if (!els.toastDetailArea || !els.showToast) {
+            return;
+        }
+
+        els.toastDetailArea.style.display = els.showToast.checked ? 'block' : 'none';
+    };
+
+    const renderPalette = (container, history, selectedColor, onPick) => {
+        if (!container) {
+            return;
+        }
+
+        container.innerHTML = '';
+
+        history.forEach((color) => {
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'preset-btn';
-            btn.setAttribute('aria-label', color);
+            btn.className = 'color-swatch';
             btn.style.background = color;
+            btn.setAttribute('aria-label', `color ${color}`);
+
+            if (normalizeColor(selectedColor) === normalizeColor(color)) {
+                btn.classList.add('is-selected');
+            }
 
             btn.addEventListener('click', () => {
                 onPick(color);
             });
 
-            containerEl.appendChild(btn);
-        }
-    };
-
-    const collectPayloadFromUi = () => {
-        const seconds = clampInt(els.toastDuration.value, 1, 10);
-
-        const bg = isValidHexColor(els.toastBgColor.value) ? els.toastBgColor.value : DEFAULTS.toastBgColor;
-        const fg = isValidHexColor(els.toastTextColor.value) ? els.toastTextColor.value : DEFAULTS.toastTextColor;
-
-        return {
-            enabled: els.enabled.checked,
-            showToast: els.showToast.checked,
-            toastPosition: els.toastPosition.value,
-            toastScale: clampFloat(els.toastScale.value, 0.8, 1.5),
-            toastDurationMs: seconds * 1000,
-            toastBgColor: bg,
-            toastTextColor: fg
-        };
-    };
-
-    const normalizePayloadFromStorage = (data) => {
-        const seconds = clampInt(Math.round(clampInt(data.toastDurationMs, 1000, 10000) / 1000), 1, 10);
-
-        return {
-            enabled: typeof data.enabled === 'boolean' ? data.enabled : DEFAULTS.enabled,
-            showToast: typeof data.showToast === 'boolean' ? data.showToast : DEFAULTS.showToast,
-            toastPosition: data.toastPosition || DEFAULTS.toastPosition,
-            toastScale: clampFloat(data.toastScale, 0.8, 1.5),
-            toastDurationMs: seconds * 1000,
-            toastBgColor: isValidHexColor(data.toastBgColor) ? data.toastBgColor : DEFAULTS.toastBgColor,
-            toastTextColor: isValidHexColor(data.toastTextColor) ? data.toastTextColor : DEFAULTS.toastTextColor
-        };
-    };
-
-    const updateUnsavedIndicator = () => {
-        const currentStr = JSON.stringify(collectPayloadFromUi());
-        const isDirty = (currentStr !== lastSavedPayloadStr);
-
-        // options.html 側で dot が hidden 属性の場合に対応
-        if (els.unsavedDot.hasAttribute('hidden')) {
-            els.unsavedDot.hidden = !isDirty;
-            return;
-        }
-
-        // class 運用の場合にも対応
-        if (isDirty) {
-            els.unsavedDot.classList.add('is-visible');
-            return;
-        }
-        els.unsavedDot.classList.remove('is-visible');
-    };
-
-    const applyDurationInputToRange = () => {
-        const seconds = clampInt(els.toastDurationInput.value, 1, 10);
-        els.toastDurationInput.value = String(seconds);
-        els.toastDuration.value = String(seconds);
-    };
-
-    const applyRangeToDurationInput = () => {
-        els.toastDurationInput.value = String(els.toastDuration.value);
-    };
-
-    const createPreviewToast = (settings) => {
-        const toast = document.createElement('div');
-        toast.className = 'ytr-toast';
-        toast.textContent = 'プレビュー表示';
-
-        if (settings.toastPosition === 'left') {
-            toast.style.left = '18px';
-            toast.style.right = 'auto';
-            toast.style.setProperty('--ytr-x', '0%');
-        } else if (settings.toastPosition === 'right') {
-            toast.style.left = 'auto';
-            toast.style.right = '18px';
-            toast.style.setProperty('--ytr-x', '0%');
-        } else {
-            toast.style.left = '50%';
-            toast.style.right = 'auto';
-            toast.style.setProperty('--ytr-x', '-50%');
-        }
-
-        toast.style.setProperty('--ytr-scale', String(settings.toastScale));
-        toast.style.setProperty('--ytr-bg', settings.toastBgColor);
-        toast.style.setProperty('--ytr-fg', settings.toastTextColor);
-
-        document.documentElement.appendChild(toast);
-
-        requestAnimationFrame(() => {
-            toast.classList.add('ytr-toast--show');
+            container.appendChild(btn);
         });
 
-        window.setTimeout(() => {
-            toast.classList.remove('ytr-toast--show');
-            window.setTimeout(() => toast.remove(), 220);
-        }, settings.toastDurationMs);
+        // 10枠未満でも 2行5列を保つための空枠
+        for (let i = history.length; i < 10; i += 1) {
+            const spacer = document.createElement('div');
+            spacer.style.width = '36px';
+            spacer.style.height = '36px';
+            container.appendChild(spacer);
+        }
+    };
+
+    const renderAllPalettes = () => {
+        if (!draft) {
+            return;
+        }
+
+        renderPalette(els.bgPalette, draft.bgColorHistory, draft.toastBgColor, (color) => {
+            draft.toastBgColor = normalizeColor(color) || draft.toastBgColor;
+            draft.bgColorHistory = pushColorFifo(draft.bgColorHistory, draft.toastBgColor);
+
+            if (els.bgPicker) {
+                els.bgPicker.value = draft.toastBgColor;
+            }
+            if (els.bgColorValue) {
+                els.bgColorValue.textContent = draft.toastBgColor;
+            }
+
+            setDirty(true);
+            renderAllPalettes();
+        });
+
+        renderPalette(els.textPalette, draft.textColorHistory, draft.toastTextColor, (color) => {
+            draft.toastTextColor = normalizeColor(color) || draft.toastTextColor;
+            draft.textColorHistory = pushColorFifo(draft.textColorHistory, draft.toastTextColor);
+
+            if (els.textPicker) {
+                els.textPicker.value = draft.toastTextColor;
+            }
+            if (els.textColorValue) {
+                els.textColorValue.textContent = draft.toastTextColor;
+            }
+
+            setDirty(true);
+            renderAllPalettes();
+        });
+    };
+
+    const syncUiFromDraft = () => {
+        if (!draft) {
+            return;
+        }
+
+        if (els.enabled) {
+            els.enabled.checked = !!draft.enabled;
+        }
+        if (els.showToast) {
+            els.showToast.checked = !!draft.showToast;
+        }
+        if (els.toastPosition) {
+            els.toastPosition.value = draft.toastPosition || 'center';
+        }
+        if (els.toastScale) {
+            els.toastScale.value = String(draft.toastScale);
+        }
+        if (els.toastScaleValue) {
+            els.toastScaleValue.textContent = String(Number(draft.toastScale).toFixed(2));
+        }
+
+        const durationSec = clamp(Math.round(draft.toastDurationMs / 1000), 1, 10);
+        if (els.toastDuration) {
+            els.toastDuration.value = String(durationSec);
+        }
+        if (els.toastDurationText) {
+            els.toastDurationText.value = String(durationSec);
+        }
+
+        if (els.bgPicker) {
+            els.bgPicker.value = draft.toastBgColor;
+        }
+        if (els.textPicker) {
+            els.textPicker.value = draft.toastTextColor;
+        }
+        if (els.bgColorValue) {
+            els.bgColorValue.textContent = draft.toastBgColor;
+        }
+        if (els.textColorValue) {
+            els.textColorValue.textContent = draft.toastTextColor;
+        }
+
+        applyEnabledMask();
+        applyToastDetailVisibility();
+        renderAllPalettes();
     };
 
     const load = async () => {
-        const raw = await STORAGE.get(DEFAULTS);
-        const data = normalizePayloadFromStorage(raw);
+        const data = await STORAGE.get(STORAGE_DEFAULTS);
 
-        els.enabled.checked = data.enabled;
-        updateEnabledLook();
+        draft = {
+            enabled: !!data.enabled,
+            showToast: !!data.showToast,
 
-        els.showToast.checked = data.showToast;
-        updateDetailsVisibility();
+            toastPosition: data.toastPosition || 'center',
+            toastScale: typeof data.toastScale === 'number' ? data.toastScale : 1.0,
+            toastDurationMs: typeof data.toastDurationMs === 'number' ? data.toastDurationMs : 2000,
 
-        els.toastPosition.value = data.toastPosition;
+            toastBgColor: normalizeColor(data.toastBgColor) || STORAGE_DEFAULTS.toastBgColor,
+            toastTextColor: normalizeColor(data.toastTextColor) || STORAGE_DEFAULTS.toastTextColor,
 
-        els.toastScale.value = String(data.toastScale);
-        updateScaleLabel();
+            bgColorHistory: ensureHistoryArray(data.bgColorHistory),
+            textColorHistory: ensureHistoryArray(data.textColorHistory)
+        };
 
-        els.toastDuration.value = String(data.toastDurationMs / 1000);
-        els.toastDurationInput.value = String(data.toastDurationMs / 1000);
+        draft.toastScale = clamp(draft.toastScale, 0.8, 1.6);
+        draft.toastDurationMs = clamp(draft.toastDurationMs, 1000, 10000);
 
-        els.toastBgColor.value = data.toastBgColor;
-        els.toastTextColor.value = data.toastTextColor;
-        updateColorLabels();
+        while (draft.bgColorHistory.length > 10) {
+            draft.bgColorHistory.shift();
+        }
+        while (draft.textColorHistory.length > 10) {
+            draft.textColorHistory.shift();
+        }
 
-        renderPresetButtons(els.bgPresets, BG_PRESETS, (color) => {
-            els.toastBgColor.value = color;
-            updateColorLabels();
-            updateUnsavedIndicator();
-        });
-
-        renderPresetButtons(els.fgPresets, FG_PRESETS, (color) => {
-            els.toastTextColor.value = color;
-            updateColorLabels();
-            updateUnsavedIndicator();
-        });
-
-        lastSavedPayloadStr = JSON.stringify(data);
-        updateUnsavedIndicator();
+        setDirty(false);
+        syncUiFromDraft();
     };
 
-    // 変更で未保存表示を更新（保存はボタンのみ）
-    els.enabled.addEventListener('change', () => {
-        updateEnabledLook();
-        updateUnsavedIndicator();
-    });
+    const buildSavePayload = () => {
+        return {
+            enabled: !!draft.enabled,
+            showToast: !!draft.showToast,
 
-    els.showToast.addEventListener('change', () => {
-        updateDetailsVisibility();
-        updateUnsavedIndicator();
-    });
+            toastPosition: draft.toastPosition,
+            toastScale: draft.toastScale,
+            toastDurationMs: draft.toastDurationMs,
 
-    els.toastPosition.addEventListener('change', updateUnsavedIndicator);
+            toastBgColor: draft.toastBgColor,
+            toastTextColor: draft.toastTextColor,
 
-    els.toastScale.addEventListener('input', () => {
-        updateScaleLabel();
-        updateUnsavedIndicator();
-    });
+            bgColorHistory: draft.bgColorHistory.slice(0, 10),
+            textColorHistory: draft.textColorHistory.slice(0, 10)
+        };
+    };
 
-    els.toastDuration.addEventListener('input', () => {
-        applyRangeToDurationInput();
-        updateUnsavedIndicator();
-    });
-
-    els.toastDurationInput.addEventListener('input', () => {
-        applyDurationInputToRange();
-        updateUnsavedIndicator();
-    });
-
-    els.toastBgColor.addEventListener('input', () => {
-        updateColorLabels();
-        updateUnsavedIndicator();
-    });
-
-    els.toastTextColor.addEventListener('input', () => {
-        updateColorLabels();
-        updateUnsavedIndicator();
-    });
-
-    els.previewToast.addEventListener('click', () => {
-        const payload = collectPayloadFromUi();
-        createPreviewToast(payload);
-    });
-
-    // 保存（local なので quota 問題を回避できる）
-    els.saveSettings.addEventListener('click', async () => {
-        if (isSaving) {
+    const save = async () => {
+        if (!draft) {
             return;
         }
 
-        isSaving = true;
-        els.saveSettings.disabled = true;
+        await STORAGE.set(buildSavePayload());
+        setDirty(false);
+        showSaveToast('設定を保存しました');
+    };
 
-        try {
-            const payload = collectPayloadFromUi();
-            await STORAGE.set(payload);
-
-            lastSavedPayloadStr = JSON.stringify(payload);
-            updateUnsavedIndicator();
-            showSaveToast();
-        } finally {
-            window.setTimeout(() => {
-                els.saveSettings.disabled = false;
-                isSaving = false;
-            }, 350);
+    const preview = () => {
+        if (!draft) {
+            return;
         }
-    });
 
-    load();
+        const toast = document.createElement('div');
+        toast.textContent = 'プレビュー表示です';
+        toast.style.position = 'fixed';
+        toast.style.top = '16px';
+        toast.style.zIndex = '2147483647';
+        toast.style.padding = '12px 16px';
+        toast.style.borderRadius = '14px';
+        toast.style.fontWeight = '900';
+        toast.style.background = draft.toastBgColor;
+        toast.style.color = draft.toastTextColor;
+
+        const scale = clamp(Number(draft.toastScale), 0.8, 1.6);
+
+        if (draft.toastPosition === 'left') {
+            toast.style.left = '18px';
+            toast.style.transform = `scale(${scale})`;
+        } else if (draft.toastPosition === 'right') {
+            toast.style.left = 'auto';
+            toast.style.right = '18px';
+            toast.style.transform = `scale(${scale})`;
+        } else {
+            toast.style.left = '50%';
+            toast.style.transform = `translateX(-50%) scale(${scale})`;
+        }
+
+        document.body.appendChild(toast);
+
+        const durationMs = clamp(Number(draft.toastDurationMs), 1000, 10000);
+        setTimeout(() => {
+            toast.remove();
+        }, durationMs);
+    };
+
+    const bindEvents = () => {
+        if (els.enabled) {
+            els.enabled.addEventListener('change', () => {
+                draft.enabled = !!els.enabled.checked;
+                setDirty(true);
+                applyEnabledMask();
+            });
+        }
+
+        if (els.showToast) {
+            els.showToast.addEventListener('change', () => {
+                draft.showToast = !!els.showToast.checked;
+                setDirty(true);
+                applyToastDetailVisibility();
+            });
+        }
+
+        if (els.toastPosition) {
+            els.toastPosition.addEventListener('change', () => {
+                draft.toastPosition = els.toastPosition.value;
+                setDirty(true);
+            });
+        }
+
+        if (els.toastScale) {
+            els.toastScale.addEventListener('input', () => {
+                const v = Number(els.toastScale.value);
+                draft.toastScale = clamp(v, 0.8, 1.6);
+
+                if (els.toastScaleValue) {
+                    els.toastScaleValue.textContent = String(draft.toastScale.toFixed(2));
+                }
+
+                setDirty(true);
+            });
+        }
+
+        if (els.toastDuration) {
+            els.toastDuration.addEventListener('input', () => {
+                const sec = clamp(Number(els.toastDuration.value), 1, 10);
+                draft.toastDurationMs = sec * 1000;
+
+                if (els.toastDurationText) {
+                    els.toastDurationText.value = String(sec);
+                }
+
+                setDirty(true);
+            });
+        }
+
+        if (els.toastDurationText) {
+            els.toastDurationText.addEventListener('change', () => {
+                const sec = clamp(Number(els.toastDurationText.value), 1, 10);
+                draft.toastDurationMs = sec * 1000;
+
+                if (els.toastDuration) {
+                    els.toastDuration.value = String(sec);
+                }
+
+                els.toastDurationText.value = String(sec);
+                setDirty(true);
+            });
+        }
+
+        if (els.bgPickApply) {
+            els.bgPickApply.addEventListener('click', () => {
+                const c = els.bgPicker ? normalizeColor(els.bgPicker.value) : null;
+                if (!c) {
+                    return;
+                }
+
+                draft.toastBgColor = c;
+                draft.bgColorHistory = pushColorFifo(draft.bgColorHistory, c);
+
+                if (els.bgColorValue) {
+                    els.bgColorValue.textContent = c;
+                }
+
+                setDirty(true);
+                renderAllPalettes();
+            });
+        }
+
+        if (els.textPickApply) {
+            els.textPickApply.addEventListener('click', () => {
+                const c = els.textPicker ? normalizeColor(els.textPicker.value) : null;
+                if (!c) {
+                    return;
+                }
+
+                draft.toastTextColor = c;
+                draft.textColorHistory = pushColorFifo(draft.textColorHistory, c);
+
+                if (els.textColorValue) {
+                    els.textColorValue.textContent = c;
+                }
+
+                setDirty(true);
+                renderAllPalettes();
+            });
+        }
+
+        if (els.previewToast) {
+            els.previewToast.addEventListener('click', () => {
+                preview();
+            });
+        }
+
+        if (els.saveSettings) {
+            els.saveSettings.addEventListener('click', () => {
+                save();
+            });
+        }
+    };
+
+    const init = async () => {
+        bindEvents();
+        await load();
+    };
+
+    init();
 })();

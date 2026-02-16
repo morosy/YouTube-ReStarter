@@ -3,105 +3,110 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>YouTube Reset Settings</title>
+    <title>YouTube-ReStarter 設定</title>
     <link rel="stylesheet" href="options.css">
-    <link rel="stylesheet" href="../styles/toast.css">
 </head>
 <body>
-    <div class="container">
-        <h1 class="page-title">YouTube Reset 設定</h1>
+    <div class="wrap">
+        <header class="header">
+            <h1 class="title">YouTube-ReStarter 設定</h1>
+            <p class="subtitle">トースト通知や動作をカスタマイズできます．</p>
+        </header>
 
-        <div class="card">
-            <div class="row">
-                <div class="label">
-                    有効化
-                    <div class="hint">ON のとき，動画を 0:00 に戻します</div>
-                </div>
-
-                <label class="switch">
-                    <input id="enabled" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
-        </div>
-
-        <div id="settingsBody">
-            <div class="card">
-                <div class="row">
-                    <div class="label">
-                        ポップアップ表示
-                        <div class="hint">処理完了時にポップアップを表示します</div>
-                    </div>
-
-                    <label class="switch">
-                        <input id="showToast" type="checkbox">
+        <main>
+            <section class="card">
+                <div class="row row-center">
+                    <div class="row-label">有効化</div>
+                    <label class="switch" aria-label="有効化トグル">
+                        <input id="enabled" type="checkbox">
                         <span class="slider"></span>
                     </label>
                 </div>
-            </div>
 
-            <div id="toastDetails" class="card">
-                <h2 class="section-title">詳細設定</h2>
-
-                <div class="field field-center">
-                    <div class="field-label">ポップアップの位置</div>
-                    <select id="toastPosition" class="select select-center">
-                        <option value="left">左上</option>
-                        <option value="center">中央</option>
-                        <option value="right">右上</option>
-                    </select>
-                </div>
-
-                <div class="field field-center">
-                    <div class="field-label">ポップアップの大きさ</div>
-                    <div class="range-row range-row-center">
-                        <input id="toastScale" class="range" type="range" min="0.8" max="1.5" step="0.05">
-                        <div id="toastScaleValue" class="range-value"></div>
+                <div id="disabledMaskTarget" class="mask-target">
+                    <div class="row row-center">
+                        <div class="row-label">ポップアップ表示</div>
+                        <label class="switch" aria-label="ポップアップ表示トグル">
+                            <input id="showToast" type="checkbox">
+                            <span class="slider"></span>
+                        </label>
                     </div>
-                </div>
 
-                <div class="field field-center">
-                    <div class="field-label">表示時間（1s～10s）</div>
-                    <div class="range-row range-row-center">
-                        <input id="toastDuration" class="range" type="range" min="1" max="10" step="1">
-                        <input id="toastDurationInput" class="number" type="number" min="1" max="10" step="1">
-                    </div>
-                </div>
+                    <div id="toastDetailArea" class="detail">
+                        <div class="row row-center">
+                            <div class="row-label">ポップアップ位置</div>
+                            <select id="toastPosition" class="select">
+                                <option value="left">左上</option>
+                                <option value="center">中央</option>
+                                <option value="right">右上</option>
+                            </select>
+                        </div>
 
-                <div class="field field-center">
-                    <div class="field-label">ポップアップの色</div>
+                        <div class="row row-center">
+                            <div class="row-label">ポップアップの大きさ</div>
+                            <input id="toastScale" class="range" type="range" min="0.8" max="1.6" step="0.05">
+                            <div id="toastScaleValue" class="value-text">1.00</div>
+                        </div>
 
-                    <div class="color-block color-block-center">
-                        <div class="color-title">バックグラウンド</div>
-                        <div id="bgPresets" class="preset-row preset-row-center" aria-label="背景色テンプレ"></div>
+                        <div class="row row-center">
+                            <div class="row-label">表示時間（1～10秒）</div>
+                            <input id="toastDuration" class="range" type="range" min="1" max="10" step="1">
+                            <div class="duration-box">
+                                <input id="toastDurationText" class="number" type="number" min="1" max="10">
+                                <span class="unit">s</span>
+                            </div>
+                        </div>
 
-                        <div class="picker-row picker-row-center">
-                            <input id="toastBgColor" class="color-input" type="color" aria-label="背景色カラーピッカー">
-                            <div id="toastBgColorValue" class="color-value"></div>
+                        <div class="color-block">
+                            <h2 class="section-title">カラー設定</h2>
+
+                            <div class="color-group">
+                                <div class="color-subtitle">背景色</div>
+                                <div id="bgPalette" class="color-grid" aria-label="背景色パレット"></div>
+
+                                <div class="picker-row">
+                                    <input id="bgPicker" class="picker" type="color" aria-label="背景色カラーピッカー">
+                                    <button id="bgPickApply" type="button" class="btn btn-sub">追加</button>
+                                </div>
+
+                                <div class="color-value-row">
+                                    <span class="color-value-label">現在：</span>
+                                    <span id="bgColorValue" class="color-value">#ff0033</span>
+                                </div>
+                            </div>
+
+                            <div class="color-group">
+                                <div class="color-subtitle">文字色</div>
+                                <div id="textPalette" class="color-grid" aria-label="文字色パレット"></div>
+
+                                <div class="picker-row">
+                                    <input id="textPicker" class="picker" type="color" aria-label="文字色カラーピッカー">
+                                    <button id="textPickApply" type="button" class="btn btn-sub">追加</button>
+                                </div>
+
+                                <div class="color-value-row">
+                                    <span class="color-value-label">現在：</span>
+                                    <span id="textColorValue" class="color-value">#ffffff</span>
+                                </div>
+                            </div>
+
+                            <button id="previewToast" type="button" class="btn">プレビュー</button>
                         </div>
                     </div>
-
-                    <div class="color-block color-block-center">
-                        <div class="color-title">フォントカラー</div>
-                        <div id="fgPresets" class="preset-row preset-row-center" aria-label="文字色テンプレ"></div>
-
-                        <div class="picker-row picker-row-center">
-                            <input id="toastTextColor" class="color-input" type="color" aria-label="文字色カラーピッカー">
-                            <div id="toastTextColorValue" class="color-value"></div>
-                        </div>
-                    </div>
                 </div>
 
-                <button id="previewToast" class="primary-btn" type="button">プレビュー</button>
-            </div>
-        </div>
+                <div class="save-row">
+                    <div id="dirtyDot" class="dirty-dot" title="未保存">●</div>
+                    <button id="saveSettings" type="button" class="btn btn-primary">設定を保存</button>
+                </div>
+            </section>
+        </main>
 
-        <div class="card card-save">
-            <div class="save-row">
-                <button id="saveSettings" class="save-btn" type="button">設定を保存</button>
-                <span id="unsavedDot" class="unsaved-dot" aria-label="未保存" title="未保存"></span>
-            </div>
-        </div>
+        <footer class="footer">
+            <p class="note">拡張機能更新後は YouTube タブをリロードすると安定します．</p>
+        </footer>
+
+        <div id="saveToast" class="save-toast" role="status" aria-live="polite"></div>
     </div>
 
     <script src="options.js"></script>
