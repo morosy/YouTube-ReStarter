@@ -409,9 +409,13 @@
         toast.style.position = 'fixed';
         toast.style.top = '18px';
         toast.style.zIndex = '2147483647';
-        toast.style.padding = '14px 18px';
-        toast.style.borderRadius = '14px';
-        toast.style.fontWeight = '900';
+        toast.style.padding = '18px 22px';
+        toast.style.borderRadius = '16px';
+        toast.style.fontSize = '18px';
+        toast.style.fontWeight = '700';
+        toast.style.minWidth = '320px';
+        toast.style.textAlign = 'center';
+        toast.style.boxShadow = '0 12px 34px rgba(0, 0, 0, 0.38)';
         toast.style.background = draft.toastBgColor;
         toast.style.color = draft.toastTextColor;
 

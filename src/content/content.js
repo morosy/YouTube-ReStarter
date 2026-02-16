@@ -20,7 +20,7 @@
         toastPosition: 'center',
         toastScale: 1.5,
         toastDurationMs: 2000,
-        // YouTubeのアイコンカラーに基づくデフォルトカラー
+
         toastBgColor: '#ff0033',
         toastTextColor: '#ffffff',
 
@@ -48,6 +48,13 @@
         }
         const snapped = Math.round(n / 10) * 10;
         return clamp(snapped, 100, 1000);
+    };
+
+    const computeToastTopPx = (scale) => {
+        const base = 22;
+        const k = 22;
+
+        return Math.round(base + (scale - 1) * k);
     };
 
     const loadSettingsCache = async () => {
@@ -131,6 +138,10 @@
 
         const scale = clamp(Number(settings.toastScale ?? 1.5), 0.5, 2.0);
         el.style.setProperty('--ytr-scale', String(scale));
+
+        // 追加：サイズに合わせて top を下げる（Chrome 上部バー被り対策）
+        const topPx = computeToastTopPx(scale);
+        el.style.setProperty('--ytr-top', `${topPx}px`);
 
         el.style.setProperty('--ytr-bg', settings.toastBgColor || '#ff0033');
         el.style.setProperty('--ytr-fg', settings.toastTextColor || '#ffffff');

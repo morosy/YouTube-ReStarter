@@ -1,34 +1,37 @@
 .ytr-toast {
     position: fixed;
-    top: 18px;
+
+    top: var(--ytr-top, 20px);
+
     left: 50%;
     right: auto;
 
     z-index: 2147483647;
 
-    padding: 14px 18px;
-    border-radius: 14px;
+    padding: 18px 22px;
 
-    /* CSS Variables */
+    border-radius: 16px;
+
     --ytr-x: -50%;
-    --ytr-y: -6px;
-    --ytr-scale: 1.5;
+    --ytr-y: -8px;
 
-    /* 変更：デフォルト色を YouTube に合わせる */
+    --ytr-scale: 1;
+
     --ytr-bg: #ff0033;
     --ytr-fg: #ffffff;
 
-    /* 追加：アニメーション速度（可変） */
     --ytr-anim-duration: 500ms;
 
     background: var(--ytr-bg);
     color: var(--ytr-fg);
 
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 18px;
+
+    font-weight: 700;
     letter-spacing: 0.2px;
 
-    min-width: 260px;
+    min-width: 320px;
+
     text-align: center;
 
     box-shadow: 0 12px 34px rgba(0, 0, 0, 0.38);
@@ -43,11 +46,10 @@
     --ytr-y: 0px;
 }
 
-/* 上から落ちてくるアニメーション */
 @keyframes ytrDropIn {
     0% {
         opacity: 0;
-        transform: translate3d(var(--ytr-x), -24px, 0) scale(var(--ytr-scale));
+        transform: translate3d(var(--ytr-x), -26px, 0) scale(var(--ytr-scale));
     }
     100% {
         opacity: 1;
