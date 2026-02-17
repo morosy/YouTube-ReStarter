@@ -29,12 +29,18 @@
                 <button id="restoreTime" class="restore-btn" type="button">
                     再生時間を復元
                 </button>
-
                 <div id="restoreDesc" class="restore-desc">
                     再生時間を復元します
                 </div>
-
                 <div id="restoreResult" class="restore-result" aria-live="polite"></div>
+            </div>
+
+            <!-- 追加：0:00に戻す（有効化OFFでも表示＆有効） -->
+            <div class="force-area">
+                <button id="forceReset" class="force-btn" type="button">
+                    0:00に戻す
+                </button>
+                <div id="forceResult" class="force-result" aria-live="polite"></div>
             </div>
 
             <div class="actions">

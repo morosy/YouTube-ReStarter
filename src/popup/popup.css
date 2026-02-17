@@ -85,6 +85,34 @@ body {
     color: rgba(0, 0, 0, 0.7);
 }
 
+.force-area {
+    margin-top: 12px;
+    text-align: center;
+}
+
+.force-btn {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: none;
+    background: #ff0033;
+    color: #ffffff;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.force-btn:hover {
+    filter: brightness(1.03);
+}
+
+.force-result {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    min-height: 16px;
+    color: rgba(0, 0, 0, 0.7);
+}
+
 .actions {
     margin-top: 12px;
     display: flex;

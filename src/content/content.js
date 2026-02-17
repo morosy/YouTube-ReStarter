@@ -37,6 +37,11 @@
     let wasEnabledCache = true;
     let showToastCache = true;
 
+    // ON/OFF 切替や非同期競合を潰すための世代
+    let generation = 0;
+
+    // 復元用スナップショット（直前の currentTime）
+    // { url: string, timeSec: number, savedAt: number }
     let lastResetSnapshot = null;
 
     const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
@@ -50,10 +55,27 @@
         return clamp(snapped, 100, 1000);
     };
 
+    const isWatchUrl = (url) => {
+        try {
+            const u = new URL(url);
+            return u.hostname === 'www.youtube.com' && u.pathname === '/watch' && u.searchParams.has('v');
+        } catch (e) {
+            return false;
+        }
+    };
+
+    const formatTime = (sec) => {
+        const s = Math.max(0, Math.floor(sec));
+        const mm = String(Math.floor(s / 60)).padStart(2, '0');
+        const ss = String(s % 60).padStart(2, '0');
+        return `${mm}:${ss}`;
+    };
+
     const computeToastTopPx = (scale) => {
+        // ベースが大きくなった前提で，上部バー被りを避けるために scale に応じて下げる
+        // 必要に応じて base/k を微調整
         const base = 22;
         const k = 22;
-
         return Math.round(base + (scale - 1) * k);
     };
 
@@ -84,7 +106,20 @@
             if (changes.enabled) {
                 wasEnabledCache = isEnabledCache;
                 isEnabledCache = changes.enabled.newValue;
-                log('enabled changed', { before: wasEnabledCache, after: isEnabledCache });
+
+                generation += 1;
+
+                // OFF にした瞬間に予約が残ると誤動作するのでキャンセル
+                if (!isEnabledCache && pendingTimerId !== null) {
+                    clearTimeout(pendingTimerId);
+                    pendingTimerId = null;
+                }
+
+                log('enabled changed', {
+                    before: wasEnabledCache,
+                    after: isEnabledCache,
+                    generation
+                });
             }
 
             if (changes.showToast) {
@@ -126,8 +161,9 @@
         }
     };
 
-    const showToast = (message, settings) => {
-        if (!showToastCache) {
+    // force=true のときは showToast 設定に関わらず表示（エラー通知など）
+    const showToast = (message, settings, force) => {
+        if (!force && !showToastCache) {
             return;
         }
 
@@ -139,7 +175,6 @@
         const scale = clamp(Number(settings.toastScale ?? 1.5), 0.5, 2.0);
         el.style.setProperty('--ytr-scale', String(scale));
 
-        // 追加：サイズに合わせて top を下げる（Chrome 上部バー被り対策）
         const topPx = computeToastTopPx(scale);
         el.style.setProperty('--ytr-top', `${topPx}px`);
 
@@ -172,15 +207,6 @@
         }, durationMs);
     };
 
-    const isWatchUrl = (url) => {
-        try {
-            const u = new URL(url);
-            return u.hostname === 'www.youtube.com' && u.pathname === '/watch' && u.searchParams.has('v');
-        } catch (e) {
-            return false;
-        }
-    };
-
     const waitForVideoElement = async (timeoutMs) => {
         const start = Date.now();
 
@@ -193,13 +219,6 @@
         }
 
         return null;
-    };
-
-    const formatTime = (sec) => {
-        const s = Math.max(0, Math.floor(sec));
-        const mm = String(Math.floor(s / 60)).padStart(2, '0');
-        const ss = String(s % 60).padStart(2, '0');
-        return `${mm}:${ss}`;
     };
 
     const getSnapshotForCurrentUrl = () => {
@@ -239,7 +258,7 @@
             const restoredTimeText = formatTime(target);
 
             const settings = await STORAGE.get(STORAGE_DEFAULTS);
-            showToast(`再生時間を復元しました（${restoredTimeText}）`, settings);
+            showToast(`再生時間を復元しました（${restoredTimeText}）`, settings, false);
 
             return { ok: true, restoredTimeText };
         } catch (e) {
@@ -247,7 +266,13 @@
         }
     };
 
-    const resetToZeroSafely = async (reason) => {
+    const resetToZeroSafely = async (reason, scheduledGeneration) => {
+        // 世代が変わっていたら，予約が古いので無視
+        if (scheduledGeneration !== generation) {
+            log('skip (generation changed)', { reason, scheduledGeneration, generation });
+            return;
+        }
+
         if (!isEnabledCache) {
             log('disabled - skip', { reason, url: location.href });
             return;
@@ -260,6 +285,7 @@
             return;
         }
 
+        // OFF -> ON を再生中に切り替えた瞬間は実行しない（次の遷移から）
         if (!wasEnabledCache && isEnabledCache) {
             const currentVideo = document.querySelector('video');
             if (currentVideo && !currentVideo.paused && !currentVideo.ended) {
@@ -288,6 +314,18 @@
         let toastShown = false;
 
         const tryReset = (tag) => {
+            // 世代が変わっていたらイベント競合なので無視
+            if (scheduledGeneration !== generation) {
+                log('skip reset (generation changed)', { tag, scheduledGeneration, generation });
+                return;
+            }
+
+            // 念のため実行直前でも OFF を見て弾く
+            if (!isEnabledCache) {
+                log('skip reset (disabled)', { tag });
+                return;
+            }
+
             try {
                 const before = Number(video.currentTime);
                 if (!Number.isNaN(before)) {
@@ -303,7 +341,7 @@
 
                 if (!toastShown) {
                     toastShown = true;
-                    showToast('実行完了しました', settings);
+                    showToast('実行完了しました', settings, false);
                 }
             } catch (e) {
                 log('reset failed', { tag, e });
@@ -325,13 +363,53 @@
         video.addEventListener('playing', onPlaying);
     };
 
+    const forceResetToZero = async () => {
+        const url = location.href;
+        const settings = await STORAGE.get(STORAGE_DEFAULTS);
+
+        if (!isWatchUrl(url)) {
+            showToast('このページでは使用できません', settings, true);
+            return { ok: false, reason: 'not_watch' };
+        }
+
+        const video = await waitForVideoElement(8000);
+        if (!video) {
+            showToast('動画が見つかりません', settings, true);
+            return { ok: false, reason: 'no_video' };
+        }
+
+        try {
+            const before = Number(video.currentTime);
+            if (!Number.isNaN(before)) {
+                lastResetSnapshot = {
+                    url,
+                    timeSec: before,
+                    savedAt: Date.now()
+                };
+            }
+
+            video.currentTime = 0;
+
+            // 成功通知は設定に従う（showToast OFF なら出ない）
+            showToast('0:00に戻しました', settings, false);
+
+            return { ok: true };
+        } catch (e) {
+            showToast('0:00に戻せませんでした', settings, true);
+            return { ok: false, reason: 'failed' };
+        }
+    };
+
     const scheduleHandle = (reason) => {
+        const scheduledGeneration = generation;
+
         if (pendingTimerId !== null) {
             clearTimeout(pendingTimerId);
         }
+
         pendingTimerId = setTimeout(() => {
             pendingTimerId = null;
-            resetToZeroSafely(reason);
+            resetToZeroSafely(reason, scheduledGeneration);
         }, 50);
     };
 
@@ -371,8 +449,19 @@
         });
     };
 
+    // popup からの操作
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!message) {
+            return;
+        }
+
+        if (message.type === 'YTR_GET_SNAPSHOT') {
+            const snap = getSnapshotForCurrentUrl();
+            if (!snap) {
+                sendResponse({ ok: false });
+                return;
+            }
+            sendResponse({ ok: true, timeText: formatTime(snap.timeSec) });
             return;
         }
 
@@ -383,14 +472,11 @@
             return true;
         }
 
-        if (message.type === 'YTR_GET_SNAPSHOT') {
-            const snap = getSnapshotForCurrentUrl();
-            if (!snap) {
-                sendResponse({ ok: false });
-                return;
-            }
-
-            sendResponse({ ok: true, timeText: formatTime(snap.timeSec) });
+        if (message.type === 'YTR_FORCE_RESET') {
+            forceResetToZero().then((res) => {
+                sendResponse(res);
+            });
+            return true;
         }
     });
 
@@ -405,5 +491,9 @@
         scheduleHandle('initial');
     };
 
-    init();
+    try {
+        init();
+    } catch (e) {
+        log('init failed', e);
+    }
 })();

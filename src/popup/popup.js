@@ -16,6 +16,10 @@
     const restoreDesc = document.getElementById('restoreDesc');
     const restoreResult = document.getElementById('restoreResult');
 
+    // 追加
+    const forceReset = document.getElementById('forceReset');
+    const forceResult = document.getElementById('forceResult');
+
     const setStatus = (text) => {
         if (!status) {
             return;
@@ -35,6 +39,13 @@
             return;
         }
         restoreResult.textContent = text;
+    };
+
+    const setForceResult = (text) => {
+        if (!forceResult) {
+            return;
+        }
+        forceResult.textContent = text;
     };
 
     const setRestoreAreaVisible = (isVisible) => {
@@ -165,6 +176,36 @@
         }
     };
 
+    // 追加：0:00 に戻す
+    const sendForceResetMessageToActiveTab = async () => {
+        setForceResult('');
+
+        const tabId = await getActiveTabId();
+        if (!tabId) {
+            setForceResult('アクティブなタブが見つかりません');
+            return;
+        }
+
+        try {
+            const res = await chrome.tabs.sendMessage(tabId, {
+                type: 'YTR_FORCE_RESET'
+            });
+
+            // watch以外の場合の「このページでは使用できません」は content 側のトーストで表示する想定
+            if (!res || !res.ok) {
+                setForceResult('実行できませんでした');
+                await refreshRestoreDescFromContent();
+                return;
+            }
+
+            setForceResult('0:00 に戻しました');
+            await refreshRestoreDescFromContent();
+        } catch (e) {
+            // content script がいないページ（YouTube以外）など
+            setForceResult('このタブでは使用できません');
+        }
+    };
+
     const init = async () => {
         const enabled = await loadSetting();
 
@@ -191,6 +232,12 @@
         if (restoreTime) {
             restoreTime.addEventListener('click', async () => {
                 await sendRestoreMessageToActiveTab();
+            });
+        }
+
+        if (forceReset) {
+            forceReset.addEventListener('click', async () => {
+                await sendForceResetMessageToActiveTab();
             });
         }
     };
