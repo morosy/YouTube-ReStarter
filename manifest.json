@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "YouTube ReStarter",
-    "version": "1.4.5",
+    "version": "1.0.0",
     "description": "YouTubeの動画を必ず0:00から再生します．",
     "icons": {
         "16": "assets/icon/icon_on16.png",
