@@ -13,6 +13,7 @@
 
     const STORAGE_DEFAULTS = {
         enabled: true,
+        skipLiveRestart: true,
         showToast: true,
 
         toastPosition: 'center',
@@ -32,6 +33,7 @@
     };
 
     const RESET_DEFAULTS = {
+        skipLiveRestart: true,
         showToast: true,
         toastPosition: 'center',
         toastAnimationEnabled: true,
@@ -59,6 +61,7 @@
 
         // Basic
         enabled: document.getElementById('enabled'),
+        skipLiveRestart: document.getElementById('skipLiveRestart'),
 
         // Popup
         showToast: document.getElementById('showToast'),
@@ -312,6 +315,10 @@
             els.enabled.checked = !!draft.enabled;
         }
 
+
+        if (els.skipLiveRestart) {
+            els.skipLiveRestart.checked = !!draft.skipLiveRestart;
+        }
         if (els.showToast) {
             els.showToast.checked = !!draft.showToast;
         }
@@ -381,6 +388,9 @@
 
         draft = {
             enabled: !!data.enabled,
+            skipLiveRestart: typeof data.skipLiveRestart === 'boolean'
+                ? data.skipLiveRestart
+                : STORAGE_DEFAULTS.skipLiveRestart,
             showToast: !!data.showToast,
 
             toastPosition: data.toastPosition || 'center',
@@ -427,6 +437,7 @@
     const buildSavePayload = () => {
         return {
             enabled: !!draft.enabled,
+            skipLiveRestart: !!draft.skipLiveRestart,
             showToast: !!draft.showToast,
 
             toastPosition: draft.toastPosition,
@@ -470,6 +481,7 @@
             return;
         }
 
+        draft.skipLiveRestart = RESET_DEFAULTS.skipLiveRestart;
         draft.showToast = RESET_DEFAULTS.showToast;
         draft.toastPosition = RESET_DEFAULTS.toastPosition;
         draft.toastAnimationEnabled = RESET_DEFAULTS.toastAnimationEnabled;
@@ -622,6 +634,9 @@
             }
 
             draft.enabled = !!payload.enabled;
+            draft.skipLiveRestart = typeof payload.skipLiveRestart === 'boolean'
+                ? payload.skipLiveRestart
+                : STORAGE_DEFAULTS.skipLiveRestart;
             draft.showToast = !!payload.showToast;
             draft.toastPosition = payload.toastPosition || 'center';
             draft.toastScale = typeof payload.toastScale === 'number' ? payload.toastScale : 1.5;
@@ -744,6 +759,16 @@
                 draft.enabled = !!els.enabled.checked;
                 setDirty(true);
                 applyEnabledMask();
+            });
+        }
+
+        if (els.skipLiveRestart) {
+            els.skipLiveRestart.addEventListener('change', () => {
+                if (!draft) {
+                    return;
+                }
+                draft.skipLiveRestart = !!els.skipLiveRestart.checked;
+                setDirty(true);
             });
         }
 

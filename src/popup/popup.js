@@ -193,7 +193,7 @@
 
             // watch以外の場合の「このページでは使用できません」は content 側のトーストで表示する想定
             if (!res || !res.ok) {
-                setForceResult('実行できませんでした');
+                setForceResult((res && res.message) || '実行できませんでした');
                 await refreshRestoreDescFromContent();
                 return;
             }

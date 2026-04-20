@@ -15,6 +15,7 @@
 
     const STORAGE_DEFAULTS = {
         enabled: true,
+        skipLiveRestart: true,
         showToast: true,
 
         toastPosition: 'center',
@@ -35,6 +36,7 @@
 
     let isEnabledCache = true;
     let wasEnabledCache = true;
+    let skipLiveRestartCache = true;
     let showToastCache = true;
 
     // ON/OFF 切替や非同期競合を潰すための世代
@@ -86,12 +88,18 @@
             wasEnabledCache = isEnabledCache;
 
             isEnabledCache = typeof data.enabled === 'boolean' ? data.enabled : true;
+            skipLiveRestartCache = typeof data.skipLiveRestart === 'boolean' ? data.skipLiveRestart : true;
             showToastCache = typeof data.showToast === 'boolean' ? data.showToast : true;
 
-            log('setting loaded', { enabled: isEnabledCache, showToast: showToastCache });
+            log('setting loaded', {
+                enabled: isEnabledCache,
+                skipLiveRestart: skipLiveRestartCache,
+                showToast: showToastCache
+            });
         } catch (e) {
             wasEnabledCache = true;
             isEnabledCache = true;
+            skipLiveRestartCache = true;
             showToastCache = true;
             log('setting load failed, fallback enabled=true', e);
         }
@@ -125,6 +133,11 @@
             if (changes.showToast) {
                 showToastCache = changes.showToast.newValue;
                 log('showToast changed', { showToast: showToastCache });
+            }
+
+            if (changes.skipLiveRestart) {
+                skipLiveRestartCache = changes.skipLiveRestart.newValue;
+                log('skipLiveRestart changed', { skipLiveRestart: skipLiveRestartCache });
             }
         });
     };
@@ -221,6 +234,93 @@
         return null;
     };
 
+    const getPlayerResponse = () => {
+        const moviePlayer = document.getElementById('movie_player');
+        if (moviePlayer && typeof moviePlayer.getPlayerResponse === 'function') {
+            try {
+                const response = moviePlayer.getPlayerResponse();
+                if (response) {
+                    return response;
+                }
+            } catch (e) {
+                log('getPlayerResponse failed', e);
+            }
+        }
+
+        const watchFlexy = document.querySelector('ytd-watch-flexy');
+        if (watchFlexy?.playerData) {
+            return watchFlexy.playerData;
+        }
+
+        if (watchFlexy?.data?.playerResponse) {
+            return watchFlexy.data.playerResponse;
+        }
+
+        return null;
+    };
+
+    const getLivePlaybackState = () => {
+        const moviePlayer = document.getElementById('movie_player');
+        if (moviePlayer && typeof moviePlayer.getVideoData === 'function') {
+            try {
+                const videoData = moviePlayer.getVideoData();
+                if (videoData?.isLive) {
+                    return 'live';
+                }
+                if (videoData?.isUpcoming) {
+                    return 'upcoming';
+                }
+            } catch (e) {
+                log('getVideoData failed', e);
+            }
+        }
+
+        const playerResponse = getPlayerResponse();
+        const liveDetails = playerResponse?.microformat?.playerMicroformatRenderer?.liveBroadcastDetails;
+        if (liveDetails?.isLiveNow === true) {
+            return 'live';
+        }
+
+        if (playerResponse?.videoDetails?.isUpcoming === true) {
+            return 'upcoming';
+        }
+
+        if (
+            liveDetails
+            && liveDetails.isLiveNow === false
+            && !liveDetails.endTimestamp
+            && !!liveDetails.startTimestamp
+        ) {
+            return 'upcoming';
+        }
+
+        const watchFlexy = document.querySelector('ytd-watch-flexy');
+        if (watchFlexy?.hasAttribute('is-live')) {
+            return 'live';
+        }
+
+        const liveMeta = document.querySelector('meta[itemprop="isLiveBroadcast"]');
+        if (liveMeta && /true/i.test(liveMeta.getAttribute('content') || '')) {
+            const endMeta = document.querySelector('meta[itemprop="endDate"]');
+            return endMeta ? 'none' : 'live';
+        }
+
+        return 'none';
+    };
+
+    const shouldSkipLiveReset = (settings) => {
+        const skipEnabled = typeof settings?.skipLiveRestart === 'boolean'
+            ? settings.skipLiveRestart
+            : skipLiveRestartCache;
+
+        if (!skipEnabled) {
+            return false;
+        }
+
+        const state = getLivePlaybackState();
+        return state === 'live' || state === 'upcoming';
+    };
+
     const getSnapshotForCurrentUrl = () => {
         const url = location.href;
 
@@ -305,9 +405,19 @@
 
         const settings = await STORAGE.get(STORAGE_DEFAULTS);
 
+        if (shouldSkipLiveReset(settings)) {
+            log('skip (live playback)', { url, reason, state: getLivePlaybackState() });
+            return;
+        }
+
         const video = await waitForVideoElement(10000);
         if (!video) {
             log('video not found', { url, reason });
+            return;
+        }
+
+        if (shouldSkipLiveReset(settings)) {
+            log('skip after wait (live playback)', { url, reason, state: getLivePlaybackState() });
             return;
         }
 
@@ -372,10 +482,26 @@
             return { ok: false, reason: 'not_watch' };
         }
 
+        if (shouldSkipLiveReset(settings)) {
+            return {
+                ok: false,
+                reason: 'live_skipped',
+                message: 'ライブでは処理を実行しません'
+            };
+        }
+
         const video = await waitForVideoElement(8000);
         if (!video) {
             showToast('動画が見つかりません', settings, true);
             return { ok: false, reason: 'no_video' };
+        }
+
+        if (shouldSkipLiveReset(settings)) {
+            return {
+                ok: false,
+                reason: 'live_skipped',
+                message: 'ライブでは処理を実行しません'
+            };
         }
 
         try {
